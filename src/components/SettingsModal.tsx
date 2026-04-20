@@ -1,0 +1,299 @@
+import React, { useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { X, User, Shield, Palette, LogOut, Check, Loader2, Edit2 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { logOut, auth, db } from '../lib/firebase';
+import { updateProfile } from 'firebase/auth';
+import { doc, updateDoc } from 'firebase/firestore';
+
+interface SettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  isEditProfile?: boolean;
+}
+
+export default function SettingsModal({ isOpen, onClose, isEditProfile = false }: SettingsModalProps) {
+  const { user, profileData } = useAuth();
+  const [activeTab, setActiveTab] = useState(isEditProfile ? 'profile' : 'account');
+  const [displayName, setDisplayName] = useState('');
+  const [handle, setHandle] = useState('');
+  const [bio, setBio] = useState('');
+  const [photoURL, setPhotoURL] = useState('');
+  const [accentColor, setAccentColor] = useState('#FFFFFF');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setDisplayName(profileData?.displayName || user?.displayName || '');
+      setHandle(profileData?.handle || '');
+      setBio(profileData?.bio || '');
+      setPhotoURL(profileData?.photoURL || user?.photoURL || '');
+      setAccentColor(profileData?.accentColor || '#FFFFFF');
+      setActiveTab(isEditProfile ? 'profile' : 'account');
+    }
+  }, [isOpen, profileData, user, isEditProfile]);
+
+  if (!user) return null;
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 1000000) { // Limit to 1MB for source
+        alert("Original image must be under 1MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_SIZE = 200; // 200x200 is plenty for Firestore
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height *= MAX_SIZE / width;
+              width = MAX_SIZE;
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width *= MAX_SIZE / height;
+              height = MAX_SIZE;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+          setPhotoURL(compressedBase64);
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!auth.currentUser) return;
+    setIsSaving(true);
+    try {
+      // 1. Update Auth for basic sync
+      // Note: We try updating Auth but if it fails due to size, we continue as Firestore is our primary source now
+      try {
+        await updateProfile(auth.currentUser, {
+          displayName: displayName
+          // We intentionally omit photoURL update in Auth if it's a large base64
+        });
+      } catch (e) {
+        console.warn("Auth profile sync failed (expected if data too large):", e);
+      }
+
+      // 2. Update Firestore (Primary Source of truth for display)
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      await updateDoc(userRef, {
+        displayName: displayName,
+        handle: handle.toLowerCase().replace(/\s+/g, ''),
+        photoURL: photoURL,
+        bio: bio,
+        accentColor: accentColor
+      });
+
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (error) {
+      console.error("Update profile error:", error);
+      alert("Failed to update profile");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="absolute inset-0 bg-black/60 backdrop-blur-md"
+          />
+          
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="relative w-full max-w-3xl bg-surface border border-border rounded-3xl overflow-hidden shadow-2xl flex h-[600px]"
+          >
+            {/* Sidebar */}
+            <div className="w-64 border-r border-border bg-midnight/50 p-6 flex flex-col">
+              <h2 className="text-sm font-display font-bold uppercase tracking-[3px] text-text-muted mb-8 px-2">Settings</h2>
+              
+              <nav className="flex flex-col gap-1">
+                <button 
+                  onClick={() => setActiveTab('profile')}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === 'profile' ? 'bg-white text-midnight' : 'text-text-muted hover:text-text-main hover:bg-white/5'}`}
+                >
+                  <User className="w-4 h-4" /> Edit Profile
+                </button>
+                <button 
+                  onClick={() => setActiveTab('account')}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === 'account' ? 'bg-white text-midnight' : 'text-text-muted hover:text-text-main hover:bg-white/5'}`}
+                >
+                  <Shield className="w-4 h-4" /> Account
+                </button>
+                <button 
+                  onClick={() => setActiveTab('appearance')}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === 'appearance' ? 'bg-white text-midnight' : 'text-text-muted hover:text-text-main hover:bg-white/5'}`}
+                >
+                  <Palette className="w-4 h-4" /> Appearance
+                </button>
+              </nav>
+
+              <button 
+                onClick={() => { logOut(); onClose(); }}
+                className="mt-auto flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-400 hover:bg-red-400/10 transition-all"
+              >
+                <LogOut className="w-4 h-4" /> Log Out
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex justify-between items-center p-6 border-b border-border">
+                <h3 className="text-xl font-display font-bold">
+                  {activeTab === 'profile' && 'Public Profile'}
+                  {activeTab === 'account' && 'Account Settings'}
+                  {activeTab === 'appearance' && 'Appearance'}
+                </h3>
+                <button onClick={onClose} className="p-2 text-text-muted hover:text-text-main">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8">
+                {activeTab === 'profile' && (
+                  <div className="flex flex-col gap-8 max-w-md">
+                    <div className="flex items-center gap-6">
+                      <div className="relative group overflow-hidden rounded-full border border-border">
+                        <img src={photoURL || user.photoURL || ''} className="w-20 h-20 object-cover" />
+                        <div 
+                          onClick={() => fileInputRef.current?.click()}
+                          className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                        >
+                          <Edit2 className="w-5 h-5 text-white" />
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="bg-surface-hover hover:bg-white/10 px-4 py-2 rounded-xl text-xs font-bold border border-border transition-all"
+                      >
+                        Change Avatar
+                      </button>
+                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAvatarChange} />
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold tracking-widest text-text-muted mb-2">Display Name</label>
+                        <input 
+                          className="w-full bg-midnight border border-border rounded-xl px-4 py-3 text-sm focus:border-white/20 outline-none" 
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold tracking-widest text-text-muted mb-2">Unique Handle (@)</label>
+                        <input 
+                          className="w-full bg-midnight border border-border rounded-xl px-4 py-3 text-sm focus:border-white/20 outline-none" 
+                          value={handle}
+                          placeholder="yourname"
+                          onChange={(e) => setHandle(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold tracking-widest text-text-muted mb-2">Short Bio</label>
+                        <textarea 
+                          rows={3} 
+                          className="w-full bg-midnight border border-border rounded-xl px-4 py-3 text-sm focus:border-white/20 outline-none resize-none" 
+                          placeholder="Write something about your signals..." 
+                          value={bio}
+                          onChange={(e) => setBio(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold tracking-widest text-text-muted mb-2">Identity Accent (Glow)</label>
+                        <div className="flex gap-2">
+                          {['#FFFFFF', '#FF3B30', '#007AFF', '#34C759', '#FFD60A', '#AF52DE'].map(c => (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => setAccentColor(c)}
+                              className={`w-8 h-8 rounded-full border-2 transition-all ${accentColor === c ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-40 hover:opacity-100'}`}
+                              style={{ backgroundColor: c, boxShadow: accentColor === c ? `0 0 15px ${c}44` : 'none' }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={handleSave}
+                      disabled={isSaving}
+                      className={`w-full py-4 rounded-full text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${saveSuccess ? 'bg-green-500 text-white' : 'bg-white text-midnight hover:bg-accent'}`}
+                    >
+                      {isSaving ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : saveSuccess ? (
+                        <><Check className="w-4 h-4" /> Changes Saved</>
+                      ) : (
+                        'Save Changes'
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {activeTab === 'account' && (
+                  <div className="flex flex-col gap-6">
+                    <div className="p-4 rounded-2xl bg-midnight border border-border">
+                      <p className="text-[10px] uppercase font-bold tracking-widest text-text-muted mb-1">Email Address</p>
+                      <p className="text-sm">{user.email}</p>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-midnight border border-border flex justify-between items-center">
+                      <div>
+                        <p className="text-[10px] uppercase font-bold tracking-widest text-text-muted mb-1">Password</p>
+                        <p className="text-sm">Last changed 2 months ago</p>
+                      </div>
+                      <button className="text-xs font-bold text-text-muted hover:text-text-main underline">Reset</button>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'appearance' && (
+                  <div className="flex flex-col gap-6">
+                    <p className="text-text-muted text-sm italic">"The void is whatever shade of dark you choose."</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 rounded-2xl border-2 border-white bg-midnight aspect-video flex items-center justify-center">
+                        <span className="text-xs font-bold uppercase">Midnight (Auto)</span>
+                      </div>
+                      <div className="p-4 rounded-2xl border border-border bg-stone-900 aspect-video flex items-center justify-center opacity-50">
+                        <span className="text-xs font-bold uppercase">Abyss (Pro)</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+}
