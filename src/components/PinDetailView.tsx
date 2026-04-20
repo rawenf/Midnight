@@ -6,10 +6,12 @@ import {
   Image as ImageIcon, Reply, CornerDownRight, Loader2,
   Info, Search, Info as InfoIcon, Eye, Plus, ExternalLink
 } from 'lucide-react';
-import EmojiPicker, { Theme } from 'emoji-picker-react';
+import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react';
 import { Pin } from '../types';
 import MasonryGrid from './MasonryGrid';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import ConfirmationModal from './ConfirmationModal';
 import { db, auth } from '../lib/firebase';
 import { followUser, unfollowUser } from '../services/followService';
 import { 
@@ -42,6 +44,7 @@ interface Comment {
   id: string;
   userId: string;
   authorName: string;
+  authorHandle: string;
   authorAvatar: string;
   text: string;
   imageUrl?: string;
@@ -51,8 +54,20 @@ interface Comment {
 
 export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSearch, onDelete, onProfileClick }: PinDetailViewProps) {
   const { user, profileData } = useAuth();
+  const { theme } = useTheme();
   const isOwner = user?.uid === pin.userId;
   const [isFollowing, setIsFollowing] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
   const [commentImage, setCommentImage] = useState<string | null>(null);
@@ -88,11 +103,30 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
   const dragY = useMotionValue(0);
   const zoomPointerStart = useRef({ x: 0, y: 0 });
 
-  // Recommendation Algorithm
-  const recommendedPins = allPins
-    .filter(p => p.id !== pin.id)
-    .filter(p => p.category === pin.category || p.tags.some(tag => pin.tags.includes(tag)))
-    .slice(0, 15);
+  // Recommendation Algorithm: Neural Proximity
+  const recommendedPins = React.useMemo(() => {
+    if (!pin.archetypes || pin.archetypes.length === 0) {
+      return allPins
+        .filter(p => p.id !== pin.id)
+        .filter(p => p.category === pin.category || p.tags.some(tag => pin.tags.includes(tag)))
+        .slice(0, 15);
+    }
+    
+    return allPins
+      .filter(p => p.id !== pin.id)
+      .map(p => {
+        // Calculate neural proximity based on archetype intersection
+        const intersection = p.archetypes?.filter(a => pin.archetypes?.includes(a)) || [];
+        const proximity = intersection.length / Math.max(pin.archetypes?.length || 1, p.archetypes?.length || 1);
+        
+        // Weight same category as secondary boost
+        const categoryBoost = p.category === pin.category ? 0.2 : 0;
+        
+        return { ...p, proximity: proximity + categoryBoost };
+      })
+      .sort((a, b) => ((b as any).proximity || 0) - ((a as any).proximity || 0))
+      .slice(0, 24);
+  }, [allPins, pin.id, pin.archetypes, pin.category, pin.tags]);
 
   useEffect(() => {
     if (!user || !pin.id) return;
@@ -137,8 +171,16 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
         await updateDoc(doc(db, 'pins', pin.id), {
           viewsCount: increment(1)
         });
+
+        // Record in User History (Neural Log)
+        if (user) {
+          const historyRef = doc(db, 'users', user.uid, 'history', pin.id);
+          await setDoc(historyRef, {
+            viewedAt: serverTimestamp()
+          });
+        }
       } catch (e) {
-        console.warn("View increment error:", e);
+        console.warn("View record error:", e);
       }
     };
     incrementViews();
@@ -345,6 +387,7 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
       await addDoc(collection(db, 'pins', pin.id, 'comments'), {
         userId: user.uid,
         authorName: profileData?.displayName || user.displayName || 'Anonymous',
+        authorHandle: profileData?.handle || user.email?.split('@')[0].toLowerCase() || 'void',
         authorAvatar: profileData?.photoURL || user.photoURL || 'https://i.pravatar.cc/150',
         text: commentText,
         imageUrl: commentImage || null,
@@ -502,34 +545,38 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (window.confirm("Broadcast signal termination for this dialogue?")) {
-      try {
-        await deleteDoc(doc(db, 'pins', pin.id, 'comments', commentId));
-        await updateDoc(doc(db, 'pins', pin.id), { commentsCount: increment(-1) });
-      } catch (e) {
-        console.error("Comment delete error:", e);
+    setConfirmModal({
+      isOpen: true,
+      title: 'Terminate Dialogue',
+      message: 'Are you sure you want to erase this archival signal from the discourse? This action is irreversible.',
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, 'pins', pin.id, 'comments', commentId));
+          await updateDoc(doc(db, 'pins', pin.id), { commentsCount: increment(-1) });
+        } catch (e) {
+          console.error("Comment delete error:", e);
+        }
       }
-    }
+    });
   };
 
   const handleDeletePin = async () => {
-    if (window.confirm("Are you sure you want to delete this signal forever?")) {
-      try {
-        setIsDeleting(true);
-        console.log("Initiating terminal deletion for signal:", pin.id);
-        
-        // Remove locally first for percieved speed if needed, but here we wait for firestore
-        await deleteDoc(doc(db, 'pins', pin.id));
-        
-        console.log("Transmission successfully terminated.");
-        onBack();
-        onDelete?.();
-      } catch (e: any) {
-        console.error("Critical Deletion Failure:", e);
-        alert(`Transmission deletion failed: ${e.message || 'Access Denied'}`);
-        setIsDeleting(false);
+    setConfirmModal({
+      isOpen: true,
+      title: 'Absolute Termination',
+      message: 'You are about to permanently erase this signal and all associated archival data. Proceed with caution.',
+      onConfirm: async () => {
+        try {
+          setIsDeleting(true);
+          await deleteDoc(doc(db, 'pins', pin.id));
+          onBack();
+          onDelete?.();
+        } catch (e: any) {
+          console.error("Critical Deletion Failure:", e);
+          setIsDeleting(false);
+        }
       }
-    }
+    });
   };
 
   return (
@@ -799,7 +846,7 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                     <div className="flex gap-2">
                         <button 
                           onClick={handleUpdate}
-                          className="flex-1 bg-white text-midnight py-4 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-accent hover:text-white transition-all flex items-center justify-center gap-2"
+                          className="flex-1 bg-white text-midnight py-4 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-white/90 hover:scale-105 transition-all flex items-center justify-center gap-2"
                         >
                           <Check className="w-4 h-4" /> Update
                         </button>
@@ -828,18 +875,19 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                       alt={authorProfile?.displayName || pin.author?.name}
                     />
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[2px] text-accent">Transmitted by</p>
+                      <p className="text-[10px] font-bold uppercase tracking-[2px] text-accent">Source Identity</p>
                       <button 
                         onClick={() => onProfileClick?.(pin.userId)}
-                        className="text-xs font-medium hover:text-accent transition-colors"
+                        className="text-sm font-bold hover:text-accent transition-colors flex items-center gap-1.5"
                       >
-                        @{authorProfile?.handle || pin.author?.handle || pin.author?.name?.toLowerCase().replace(/\s+/g, '.') || 'void.signal'}
+                        {authorProfile?.displayName || pin.author?.name}
+                        <span className="text-[10px] text-text-muted opacity-60 font-medium">@{authorProfile?.handle || pin.author?.handle || 'void'}</span>
                       </button>
                     </div>
                     {!isOwner && (
                       <button 
                         onClick={handleFollow}
-                        className={`ml-auto px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${isFollowing ? 'bg-white/5 text-text-muted border border-white/10' : 'bg-white text-midnight hover:bg-accent hover:text-white'}`}
+                        className={`ml-auto px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${isFollowing ? 'bg-white/5 text-text-muted border border-white/10' : 'bg-white text-midnight hover:bg-white/90 hover:scale-105'}`}
                       >
                         {isFollowing ? 'Linked' : 'Link'}
                       </button>
@@ -872,11 +920,35 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                 </div>
 
                 <div>
-                  <p className="text-[9px] font-bold uppercase tracking-[2px] text-text-muted mb-4">Palette</p>
+                  <p className="text-[9px] font-bold uppercase tracking-[2px] text-text-muted mb-4">Neural Archetypes</p>
+                  <div className="flex flex-wrap gap-2">
+                    {pin.archetypes && pin.archetypes.length > 0 ? pin.archetypes.map(arch => (
+                      <span key={arch} className="px-3 py-1 bg-accent/5 border border-accent/10 rounded-full text-[10px] text-accent font-bold tracking-wider">
+                        {arch}
+                      </span>
+                    )) : (
+                      <span className="text-[10px] text-text-muted opacity-40 italic">Uncategorized frequency</span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-[2px] text-text-muted mb-4">Spectral Analysis</p>
                   <div className="flex gap-2">
-                    {[pin.color || '#888888', '#1A1A1A', '#333333', '#444444'].map((col, i) => (
-                      <div key={i} className="w-8 h-8 rounded-full border border-white/10" style={{ backgroundColor: col }} />
-                    ))}
+                    {pin.colorSpectrum && pin.colorSpectrum.length > 0 ? pin.colorSpectrum.map((spec, i) => (
+                      <div 
+                        key={i} 
+                        className="h-8 rounded-full border border-white/10 transition-all hover:scale-110" 
+                        style={{ 
+                          backgroundColor: `rgb(${spec.r}, ${spec.g}, ${spec.b})`,
+                          width: `${spec.weight * 100}px`,
+                          minWidth: '20px'
+                        }} 
+                        title={`R:${spec.r} G:${spec.g} B:${spec.b} (${Math.round(spec.weight * 100)}%)`}
+                      />
+                    )) : (
+                      <div className="w-8 h-8 rounded-full border border-white/10" style={{ backgroundColor: pin.accentColor || pin.color || '#888888' }} />
+                    )}
                   </div>
                 </div>
 
@@ -920,7 +992,7 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2">
                                     <p className="text-[11px] font-bold">{parent.authorName}</p>
-                                    <span className="text-[9px] text-white/20">Archived</span>
+                                    <span className="text-[9px] text-text-muted opacity-40">@{parent.authorHandle || 'archived'}</span>
                                   </div>
                                   <p className="text-xs text-text-muted mt-0.5">{parent.text}</p>
                                   {parent.imageUrl && (
@@ -932,7 +1004,7 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                                     <button 
                                       onClick={() => {
                                         setReplyTo(parent);
-                                        setCommentText(`@${parent.authorName.replace(/\s+/g, '')} `);
+                                        setCommentText(`@${parent.authorHandle || parent.authorName.replace(/\s+/g, '')} `);
                                         commentInputRef.current?.focus();
                                       }}
                                       className="text-[9px] font-bold uppercase tracking-widest text-text-muted hover:text-accent flex items-center gap-1.5 transition-colors"
@@ -954,14 +1026,14 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2">
                                       <p className="text-[10px] font-bold">{child.authorName}</p>
-                                      <span className="text-[8px] text-white/10">Synchronized</span>
+                                      <span className="text-[8px] text-text-muted opacity-40">@{child.authorHandle || 'sync'}</span>
                                     </div>
                                     <p className="text-[11px] text-text-muted mt-0.5">{child.text}</p>
                                     <div className="flex items-center gap-4 mt-2">
                                       <button 
                                         onClick={() => {
                                           setReplyTo(parent); // Still reply to main parent for now
-                                          setCommentText(`@${child.authorName.replace(/\s+/g, '')} `);
+                                          setCommentText(`@${child.authorHandle || child.authorName.replace(/\s+/g, '')} `);
                                           commentInputRef.current?.focus();
                                         }}
                                         className="text-[9px] font-bold uppercase tracking-widest text-text-muted hover:text-accent transition-colors"
@@ -1016,6 +1088,24 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
                 />
+                <button 
+                  type="button" 
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  className={`p-2 rounded-xl transition-all ${showEmojiPicker ? 'bg-accent text-white' : 'text-text-muted hover:text-white hover:bg-white/5'}`}
+                >
+                  <Smile className="w-4 h-4" />
+                </button>
+                {showEmojiPicker && (
+                  <div className="absolute bottom-full right-0 mb-4 z-[150]">
+                    <EmojiPicker 
+                      theme={theme === 'abyss' ? EmojiTheme.DARK : EmojiTheme.AUTO}
+                      onEmojiClick={(emojiData) => {
+                        setCommentText(prev => prev + emojiData.emoji);
+                        setShowEmojiPicker(false);
+                      }}
+                    />
+                  </div>
+                )}
                 <button type="button" onClick={() => commentFileRef.current?.click()} className="text-text-muted hover:text-white transition-colors"><ImageIcon className="w-4 h-4" /></button>
                 <button disabled={!commentText.trim() && !commentImage} className="text-xs font-bold text-accent disabled:opacity-30 uppercase tracking-widest hover:scale-105 active:scale-95 transition-all">Post</button>
               </div>
@@ -1024,6 +1114,13 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
           </div>
         </motion.aside>
       </div>
+      <ConfirmationModal 
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+      />
     </motion.div>
   );
 }

@@ -7,13 +7,11 @@ import { COLORS } from '../constants';
 
 interface NavbarProps {
   onUploadClick: () => void;
-  onColorChange: (color: string | null) => void;
   onSearchChange: (query: string) => void;
   onProfileClick: () => void;
   onFeedClick: () => void;
   onNotificationsClick: () => void;
   onMessagesClick: () => void;
-  activeColor: string | null;
   searchQuery: string;
   currentView: 'feed' | 'profile';
 }
@@ -22,18 +20,15 @@ const COLORS_PLACEHOLDER = []; // Removed old local colors
 
 export default function Navbar({ 
   onUploadClick, 
-  onColorChange, 
   onSearchChange, 
   onProfileClick,
   onFeedClick,
   onNotificationsClick,
   onMessagesClick,
-  activeColor, 
   searchQuery,
   currentView
 }: NavbarProps) {
   const { user, profileData } = useAuth();
-  const [showColors, setShowColors] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   return (
@@ -46,7 +41,7 @@ export default function Navbar({
             className="flex items-center cursor-pointer"
             onClick={onFeedClick}
           >
-            <div className="font-display text-xl sm:text-2xl font-extrabold tracking-[-0.04em] uppercase">
+            <div className="font-display text-xl sm:text-2xl font-extrabold tracking-[-0.04em] uppercase hover:glitch-text transition-all duration-300">
               Midnight
             </div>
           </motion.div>
@@ -61,42 +56,6 @@ export default function Navbar({
               placeholder="Search the silence..." 
               className="w-full bg-surface border border-border rounded-full py-2.5 px-6 text-sm focus:outline-none focus:border-white/30 transition-all placeholder:text-text-muted text-text-main"
             />
-          </div>
-          <div className="relative">
-            <button 
-              onClick={() => setShowColors(!showColors)}
-              className={`w-10 h-10 rounded-full border border-border flex items-center justify-center transition-all ${activeColor ? 'border-text-main' : 'hover:border-white/30'}`}
-              style={activeColor ? { backgroundColor: activeColor } : {}}
-            >
-              {!activeColor && <div className="w-4 h-4 rounded-full bg-gradient-to-tr from-stone-800 to-stone-400" />}
-            </button>
-            
-            <AnimatePresence>
-              {showColors && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  className="absolute top-full right-0 mt-3 p-3 bg-surface border border-border rounded-2xl grid grid-cols-4 gap-2 shadow-2xl min-w-[160px]"
-                >
-                  <button 
-                    onClick={() => { onColorChange(null); setShowColors(false); }}
-                    className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-[10px] text-text-muted hover:text-text-main bg-midnight"
-                  >
-                    X
-                  </button>
-                  {COLORS.map(c => (
-                    <button
-                      key={c.name}
-                      onClick={() => { onColorChange(c.hex); setShowColors(false); }}
-                      className="w-8 h-8 rounded-full border border-white/10 transition-transform hover:scale-110 shadow-sm"
-                      style={{ backgroundColor: c.hex }}
-                      title={c.name}
-                    />
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
         </div>
 
@@ -172,22 +131,6 @@ export default function Navbar({
                 placeholder="Search frequencies..." 
                 className="w-full bg-surface border border-border rounded-xl py-3 px-6 text-sm focus:outline-none focus:border-white/30 transition-all placeholder:text-text-muted text-text-main"
               />
-              <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                <button 
-                  onClick={() => onColorChange(null)}
-                  className={`w-8 h-8 shrink-0 rounded-full border border-border flex items-center justify-center text-[10px] ${!activeColor ? 'bg-white text-midnight' : 'text-text-muted'}`}
-                >
-                  X
-                </button>
-                {COLORS.map(c => (
-                  <button
-                    key={c.name}
-                    onClick={() => onColorChange(c.hex)}
-                    className={`w-8 h-8 shrink-0 rounded-full border transition-all ${activeColor === c.hex ? 'border-white scale-110' : 'border-white/10'}`}
-                    style={{ backgroundColor: c.hex }}
-                  />
-                ))}
-              </div>
             </div>
           </motion.div>
         )}

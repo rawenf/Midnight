@@ -5,9 +5,18 @@ import { motion } from 'motion/react';
 interface MasonryGridProps {
   pins: Pin[];
   onPinClick?: (pin: Pin) => void;
+  isSelectionMode?: boolean;
+  selectedIds?: string[];
+  onToggleSelection?: (id: string) => void;
 }
 
-export default function MasonryGrid({ pins, onPinClick }: MasonryGridProps) {
+export default function MasonryGrid({ 
+  pins, 
+  onPinClick, 
+  isSelectionMode, 
+  selectedIds = [], 
+  onToggleSelection 
+}: MasonryGridProps) {
   return (
     <div className="px-4 py-4 w-full">
       <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 2xl:columns-7 gap-4 space-y-4">
@@ -22,6 +31,9 @@ export default function MasonryGrid({ pins, onPinClick }: MasonryGridProps) {
             <PinCard 
               pin={pin} 
               onCardClick={() => onPinClick?.(pin)}
+              isSelectionMode={isSelectionMode}
+              isSelected={selectedIds.includes(pin.id)}
+              onToggleSelection={onToggleSelection}
             />
           </motion.div>
         ))}

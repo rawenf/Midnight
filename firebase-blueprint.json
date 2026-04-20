@@ -9,6 +9,11 @@
         "displayName": { "type": "string" },
         "email": { "type": "string" },
         "photoURL": { "type": "string" },
+        "handle": { "type": "string" },
+        "bio": { "type": "string" },
+        "accentColor": { "type": "string" },
+        "followersCount": { "type": "integer" },
+        "followingCount": { "type": "integer" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email"]
@@ -23,7 +28,8 @@
           "type": "object",
           "properties": {
             "name": { "type": "string" },
-            "avatar": { "type": "string" }
+            "avatar": { "type": "string" },
+            "handle": { "type": "string" }
           }
         },
         "title": { "type": "string" },
@@ -31,11 +37,26 @@
         "imageUrl": { "type": "string" },
         "category": { "type": "string" },
         "color": { "type": "string" },
+        "accentColor": { "type": "string" },
+        "archetypes": { "type": "array", "items": { "type": "string" } },
+        "colorSpectrum": { 
+          "type": "array", 
+          "items": { 
+            "type": "object",
+            "properties": {
+              "r": { "type": "number" },
+              "g": { "type": "number" },
+              "b": { "type": "number" },
+              "weight": { "type": "number" }
+            }
+          } 
+        },
         "createdAt": { "type": "string", "format": "date-time" },
         "aspectRatio": { "type": "string" },
         "tags": { "type": "array", "items": { "type": "string" } },
         "likesCount": { "type": "integer" },
-        "commentsCount": { "type": "integer" }
+        "commentsCount": { "type": "integer" },
+        "viewsCount": { "type": "integer" }
       },
       "required": ["userId", "title", "imageUrl", "createdAt", "author"]
     },
@@ -117,6 +138,18 @@
     "/users/{userId}/notifications/{notificationId}": {
       "schema": "Notification",
       "description": "User-specific notifications"
+    },
+    "/users/{userId}/following/{targetUid}": {
+      "schema": { "type": "object", "properties": { "createdAt": { "type": "string" } } },
+      "description": "Users followed by this person"
+    },
+    "/users/{userId}/followers/{targetUid}": {
+      "schema": { "type": "object", "properties": { "createdAt": { "type": "string" } } },
+      "description": "Users following this person"
+    },
+    "/users/{userId}/history/{pinId}": {
+      "schema": { "type": "object", "properties": { "viewedAt": { "type": "string" } } },
+      "description": "Signals recently viewed by this person"
     },
     "/chats/{chatId}": {
       "schema": "Chat",

@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, Search, Image as ImageIcon, ChevronLeft, User, Phone, Video, MoreVertical, MessageSquare } from 'lucide-react';
+import { X, Send, Search, Image as ImageIcon, ChevronLeft, User, Phone, Video, MoreVertical, MessageSquare, Smile, Zap, Loader2 } from 'lucide-react';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, increment, getDocs, limit, getDoc, setDoc } from 'firebase/firestore';
+import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react';
 
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { Mail } from 'lucide-react';
 
 interface MessagesPanelProps {
@@ -37,11 +39,17 @@ interface Message {
 
 export default function MessagesPanel({ isOpen, onClose, initialChatUserId }: MessagesPanelProps) {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [messageImage, setMessageImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSending, setIsSending] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGifPicker, setShowGifPicker] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -149,28 +157,58 @@ export default function MessagesPanel({ isOpen, onClose, initialChatUserId }: Me
     return () => unsubscribe();
   }, [activeChat, isOpen]);
 
-  // 3. Handle Send Message
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !activeChat || !newMessage.trim()) return;
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!user || !activeChat || (!newMessage.trim() && !messageImage) || isSending) return;
 
     const text = newMessage.trim();
+    const image = messageImage;
     setNewMessage('');
+    setMessageImage(null);
+    setShowEmojiPicker(false);
+    setShowGifPicker(false);
+    setIsSending(true);
 
     try {
       await addDoc(collection(db, 'chats', activeChat.id, 'messages'), {
         text,
+        imageUrl: image,
         senderId: user.uid,
         createdAt: serverTimestamp()
       });
 
       await updateDoc(doc(db, 'chats', activeChat.id), {
-        lastMessage: text,
+        lastMessage: image ? 'Shared a visual archive' : text,
         lastMessageAt: serverTimestamp(),
         [`unreadCount.${activeChat.uids.find(id => id !== user.uid)}`]: increment(1)
       });
     } catch (err) {
       console.error("Transmission failed:", err);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const MAX = 800;
+          if (width > MAX) { height *= MAX / width; width = MAX; }
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext('2d')?.drawImage(img, 0, 0, width, height);
+          setMessageImage(canvas.toDataURL('image/jpeg', 0.8));
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -299,10 +337,15 @@ export default function MessagesPanel({ isOpen, onClose, initialChatUserId }: Me
                         >
                           <div className={`max-w-[80%] px-5 py-3.5 rounded-3xl text-sm leading-relaxed ${
                             isMe 
-                              ? 'bg-accent text-white rounded-tr-none shadow-[0_10px_20px_rgba(var(--color-accent-rgb),0.2)]' 
+                              ? 'bg-accent text-white rounded-tr-none shadow-lg' 
                               : 'bg-white/10 text-text-main rounded-tl-none border border-white/5'
                           }`}>
-                            <p>{msg.text}</p>
+                            {msg.imageUrl && (
+                              <div className="mb-3 rounded-2xl overflow-hidden border border-white/10">
+                                <img src={msg.imageUrl} className="w-full h-auto max-h-[300px] object-cover" />
+                              </div>
+                            )}
+                            {msg.text && <p>{msg.text}</p>}
                             <span className={`text-[8px] mt-2 block opacity-40 font-bold uppercase tracking-widest ${isMe ? 'text-right' : 'text-left'}`}>
                                {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Syncing'}
                             </span>
@@ -314,22 +357,103 @@ export default function MessagesPanel({ isOpen, onClose, initialChatUserId }: Me
 
                   {/* Input Area */}
                   <div className="p-6 bg-surface/50 border-t border-white/5">
+                    {messageImage && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-4 relative inline-block"
+                      >
+                         <img src={messageImage} className="w-24 h-24 rounded-2xl object-cover border border-white/10 shadow-2xl" />
+                         <button 
+                           onClick={() => setMessageImage(null)}
+                           className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg"
+                         >
+                           <X className="w-4 h-4" />
+                         </button>
+                      </motion.div>
+                    )}
                     <form onSubmit={handleSendMessage} className="flex items-center gap-3 bg-midnight border border-white/10 rounded-3xl p-2.5 pr-4 pl-6 transition-all focus-within:border-accent">
-                      <button type="button" className="text-text-muted hover:text-white transition-colors">
-                        <ImageIcon className="w-4 h-4" />
-                      </button>
-                      <input 
-                        className="flex-1 bg-transparent text-sm focus:outline-none placeholder:text-text-muted py-2"
-                        placeholder="Broadcast message..."
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                      />
+                      <div className="flex gap-2 text-text-muted">
+                        <button 
+                          type="button" 
+                          onClick={() => fileInputRef.current?.click()}
+                          className="hover:text-white transition-colors"
+                        >
+                          <ImageIcon className="w-4 h-4" />
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                          className={`hover:text-white transition-colors ${showEmojiPicker ? 'text-accent' : ''}`}
+                        >
+                          <Smile className="w-4 h-4" />
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => setShowGifPicker(!showGifPicker)}
+                          className={`hover:text-white transition-colors ${showGifPicker ? 'text-accent' : ''}`}
+                        >
+                          <Zap className="w-4 h-4" />
+                        </button>
+                      </div>
+                      
+                      <div className="flex-1 relative">
+                        <input 
+                          className="w-full bg-transparent text-sm focus:outline-none placeholder:text-text-muted py-2"
+                          placeholder="Broadcast message..."
+                          value={newMessage}
+                          onChange={(e) => {
+                            setNewMessage(e.target.value);
+                            if (showEmojiPicker) setShowEmojiPicker(false);
+                          }}
+                        />
+                        
+                        {showEmojiPicker && (
+                          <div className="absolute bottom-full left-0 mb-4 z-[100]">
+                             <EmojiPicker 
+                               theme={theme === 'abyss' ? EmojiTheme.DARK : EmojiTheme.AUTO}
+                               onEmojiClick={(emojiData) => {
+                                 setNewMessage(prev => prev + emojiData.emoji);
+                               }}
+                             />
+                          </div>
+                        )}
+
+                        {showGifPicker && (
+                          <div className="absolute bottom-full left-0 mb-4 z-[100] w-64 bg-surface border border-white/10 rounded-3xl p-4 shadow-2xl">
+                             <p className="text-[9px] uppercase font-bold tracking-widest text-text-muted mb-4">Neural GIF Archives</p>
+                             <div className="grid grid-cols-2 gap-2">
+                                {[
+                                  'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXphdWp6dngwenNrcGZ5dnFiaDcyZWRjZmV6ZnVjZ3h2ZHF6ciZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKSjPXYYLInG8s0/giphy.gif',
+                                  'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbnZueG9uNXo0amg0amg0amg0amg0amg0amg0amg0amg0amg0amg0JmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1n/l0HlS6yXNfXv0mY6c/giphy.gif',
+                                  'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMWNjZmVxeDRuanM1anM1janM1anM1janM1janM1janM1janM1JmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1n/3o7TKMGpxVfFzD3HkI/giphy.gif',
+                                  'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExZ3NndHpmZW56eGZreGZreGZreGZreGZreGZreGZreGZreGZreGZreCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/26uf7O0h1hA36M6hG/giphy.gif'
+                                ].map((gif, i) => (
+                                  <img 
+                                    key={i} 
+                                    src={gif} 
+                                    className="w-full h-16 rounded-xl object-cover cursor-pointer hover:scale-105 transition-transform" 
+                                    onClick={() => {
+                                      setMessageImage(gif);
+                                      setShowGifPicker(false);
+                                      handleSendMessage();
+                                    }}
+                                  />
+                                ))}
+                             </div>
+                             <p className="mt-4 text-[7px] text-text-muted italic">More archives syncing soon...</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <input type="file" className="hidden" ref={fileInputRef} accept="image/*" onChange={handleImageSelect} />
+
                       <button 
                         type="submit" 
-                        disabled={!newMessage.trim()}
+                        disabled={(!newMessage.trim() && !messageImage) || isSending}
                         className="w-10 h-10 bg-accent text-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 disabled:opacity-30 disabled:scale-100 transition-all shadow-lg"
                       >
-                        <Send className="w-4 h-4" />
+                        {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                       </button>
                     </form>
                   </div>

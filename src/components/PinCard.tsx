@@ -7,9 +7,12 @@ import { useAuth } from '../contexts/AuthContext';
 interface PinCardProps {
   pin: Pin;
   onCardClick?: () => void;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: (id: string) => void;
 }
 
-export default function PinCard({ pin, onCardClick }: PinCardProps) {
+export default function PinCard({ pin, onCardClick, isSelectionMode, isSelected, onToggleSelection }: PinCardProps) {
   const { user, profileData } = useAuth();
   const [isHovered, setIsHovered] = useState(false);
   const [isFlickering, setIsFlickering] = useState(false);
@@ -36,8 +39,24 @@ export default function PinCard({ pin, onCardClick }: PinCardProps) {
       className={`relative group mb-6 flex flex-col cursor-pointer overflow-hidden rounded-3xl bg-surface border border-white/5 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)]`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setIsHovered(false)}
-      onClick={onCardClick}
+      onClick={isSelectionMode ? () => onToggleSelection?.(pin.id) : onCardClick}
     >
+      {isSelectionMode && (
+        <div className={`absolute top-4 left-4 z-40 w-6 h-6 rounded-lg border-2 transition-all flex items-center justify-center ${isSelected ? 'bg-accent border-accent shadow-[0_0_15px_rgba(255,255,255,0.3)]' : 'bg-black/40 border-white/20 backdrop-blur-md'}`}>
+          {isSelected && (
+            <motion.div 
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="w-2.5 h-2.5 bg-white rounded-sm" 
+            />
+          )}
+        </div>
+      )}
+
+      {isSelectionMode && isSelected && (
+        <div className="absolute inset-0 bg-accent/20 z-30 transition-all pointer-events-none border-2 border-accent/50 rounded-3xl" />
+      )}
+
       <div className={`relative overflow-hidden w-full h-auto`}>
         {isLoading && (
           <div className="absolute inset-0 bg-stone-900/50 animate-pulse flex items-center justify-center min-h-[200px]">
@@ -91,6 +110,15 @@ export default function PinCard({ pin, onCardClick }: PinCardProps) {
               </div>
 
               <div className="space-y-3">
+                {pin.archetypes && pin.archetypes.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {pin.archetypes.slice(0, 2).map(arch => (
+                      <span key={arch} className="px-2 py-0.5 bg-white/10 backdrop-blur-md border border-white/10 rounded-md text-[8px] font-bold uppercase tracking-widest text-white/80">
+                        {arch}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-1.5 text-[10px] font-bold text-white">
                     <Heart className="w-3.5 h-3.5 text-white fill-white" />

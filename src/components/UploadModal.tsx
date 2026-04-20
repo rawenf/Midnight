@@ -27,6 +27,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
   const [color, setColor] = useState('#FFFFFF');
   const [isUploading, setIsUploading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisStatus, setAnalysisStatus] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -48,7 +49,11 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
         contents: {
           parts: [
             { inlineData: { data: base64.split(',')[1], mimeType: "image/jpeg" } },
-            { text: `Analyze this image for dominant color vibes. Pick the one CLOSEST hex color from this specific list: [${hexList.join(', ')}]. Return a JSON object with: 'suggestedColor' (one of the hex codes) and 'category' (best fit from: ${categoryList}).` }
+            { text: `Analyze this image for its conceptual essence. 
+              1. Pick the CLOSEST hex color from this specific list for the primary accent: [${hexList.join(', ')}].
+              2. Identify 3 'archetypes' (conceptual labels like 'Brutalist', 'Ethereal', 'Cybernetic', 'Minimalist', 'Organic', 'Dystopian', 'Bauhaus').
+              3. Provide a 'colorSpectrum' of 3 dominant RGB colors with their relative weights (0.0 to 1.0).
+              4. Pick the best category from: ${categoryList}.` }
           ]
         },
         config: {
@@ -57,20 +62,38 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
             type: Type.OBJECT,
             properties: {
               category: { type: Type.STRING },
-              suggestedColor: { type: Type.STRING }
+              suggestedColor: { type: Type.STRING },
+              archetypes: { type: Type.ARRAY, items: { type: Type.STRING } },
+              colorSpectrum: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    r: { type: Type.NUMBER },
+                    g: { type: Type.NUMBER },
+                    b: { type: Type.NUMBER },
+                    weight: { type: Type.NUMBER }
+                  }
+                }
+              }
             }
           }
         }
       });
 
       const data = JSON.parse(response.text);
-      // No longer auto-setting title and description based on user request
       if (CATEGORIES.includes(data.category as Category)) {
         setCategory(data.category as Category);
       }
       if (data.suggestedColor) {
         setColor(data.suggestedColor);
       }
+      
+      // Store archetypes and spectrum temporarily for final upload
+      (window as any)._lastNeuralData = {
+        archetypes: data.archetypes || [],
+        colorSpectrum: data.colorSpectrum || []
+      };
     } catch (e) {
       console.warn("AI Analysis failed:", e);
     } finally {
@@ -82,7 +105,8 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 2000000) { // Check for reasonable input size first
-        alert("Original image must be under 2MB for standard transmission.");
+        setError("Original image must be under 2MB for standard transmission.");
+        setTimeout(() => setError(null), 3000);
         return;
       }
       const reader = new FileReader();
@@ -142,13 +166,18 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
         description,
         imageUrl,
         category,
-        color,
+        accentColor: color,
         aspectRatio: detectedAspectRatio,
+        archetypes: (window as any)._lastNeuralData?.archetypes || [],
+        colorSpectrum: (window as any)._lastNeuralData?.colorSpectrum || [],
         createdAt: serverTimestamp(),
         tags: [category],
         likesCount: 0,
-        commentsCount: 0
+        commentsCount: 0,
+        viewsCount: 0
       });
+      
+      delete (window as any)._lastNeuralData;
       
       setIsSuccess(true);
       setTimeout(() => {
@@ -160,7 +189,8 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
       }, 2000);
     } catch (error) {
       console.error("Upload error:", error);
-      alert("Error uploading. Check console.");
+      setError("Error transmitting signal. Check archival connectivity.");
+      setTimeout(() => setError(null), 3000);
     } finally {
       setIsUploading(false);
     }
@@ -185,6 +215,15 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
             className="relative w-full max-w-2xl bg-surface border border-border rounded-3xl overflow-hidden shadow-2xl"
           >
             <div className="p-8">
+              {error && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-bold uppercase tracking-widest text-center"
+                >
+                  {error}
+                </motion.div>
+              )}
               <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-3">
                   <h2 className="font-display font-bold text-2xl text-text-main pb-1 border-b border-white/5">

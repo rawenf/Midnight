@@ -22,7 +22,7 @@ export default function App() {
   const { user } = useAuth();
   const [activeCategory, setActiveCategory] = useState<Category>('All');
   const [sortOrder, setSortOrder] = useState<'newest' | 'trending'>('newest');
-  const [activeColor, setActiveColor] = useState<string | null>(null);
+  const [feedMode, setFeedMode] = useState<'discovery' | 'for-you'>('discovery');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [displayCount, setDisplayCount] = useState(15);
@@ -32,7 +32,7 @@ export default function App() {
   // Reset pagination on filter change
   useEffect(() => {
     setDisplayCount(15);
-  }, [activeCategory, activeColor, debouncedSearch, sortOrder]);
+  }, [activeCategory, debouncedSearch, sortOrder]);
 
   // Social Modal States
   const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
@@ -76,6 +76,9 @@ export default function App() {
   const [searchedUsers, setSearchedUsers] = useState<any[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [savedPinIds, setSavedPinIds] = useState<string[]>([]);
+  const [recentlyViewedIds, setRecentlyViewedIds] = useState<string[]>([]);
+  const [followingIds, setFollowingIds] = useState<string[]>([]);
+  const [likedPinCategories, setLikedPinCategories] = useState<string[]>([]);
 
   useEffect(() => {
     const pinsRef = collection(db, 'pins');
@@ -99,6 +102,22 @@ export default function App() {
   }, [sortOrder]);
 
   useEffect(() => {
+    const titles: Record<string, string> = {
+      feed: 'Home',
+      profile: 'Profile',
+      detail: selectedPin ? selectedPin.title : 'Signal',
+      notifications: 'Notifications'
+    };
+    
+    document.title = titles[currentView] || 'Midnight';
+
+    // Neural Failsafe: Redirect to feed if detail view is active without a selected pin
+    if (currentView === 'detail' && !selectedPin) {
+      setCurrentView('feed');
+    }
+  }, [currentView, selectedPin]);
+
+  useEffect(() => {
     if (!user) {
       setSavedPinIds([]);
       return;
@@ -112,27 +131,106 @@ export default function App() {
     return unsubscribe;
   }, [user]);
 
+  // Sync Recently Viewed Signals (Neural History)
+  useEffect(() => {
+    if (!user) {
+      setRecentlyViewedIds([]);
+      return;
+    }
+    const q = query(
+      collection(db, 'users', user.uid, 'history'), 
+      orderBy('viewedAt', 'desc'),
+      limit(30)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setRecentlyViewedIds(snapshot.docs.map(doc => doc.id));
+    }, (error) => {
+      console.warn("History listener error:", error);
+    });
+    return unsubscribe;
+  }, [user]);
+
+  // Sync Followed Users for the "For You" Neural Layer
+  useEffect(() => {
+    if (!user) {
+      setFollowingIds([]);
+      return;
+    }
+    const q = query(collection(db, 'users', user.uid, 'following'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setFollowingIds(snapshot.docs.map(doc => doc.id));
+    }, (error) => {
+      console.warn("Following listener error:", error);
+    });
+    return unsubscribe;
+  }, [user]);
+
+  // Derive User Interests from Liked Signal Categories
+  useEffect(() => {
+    if (!user || realPins.length === 0) return;
+    
+    // We get the categories of pins the user has saved
+    const interests = realPins
+      .filter(p => savedPinIds.includes(p.id))
+      .map(p => p.category);
+      
+    // Count occurrences to find "High Affinity" categories
+    const counts = interests.reduce((acc: any, cat) => {
+      acc[cat] = (acc[cat] || 0) + 1;
+      return acc;
+    }, {});
+    
+    const sortedInterests = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    setLikedPinCategories(sortedInterests);
+  }, [user, realPins, savedPinIds]);
+
   const createdPins = user ? realPins.filter(pin => pin.userId === user.uid) : [];
   const savedPins = realPins.filter(pin => savedPinIds.includes(pin.id));
+  const recentPins = realPins
+    .filter(pin => recentlyViewedIds.includes(pin.id))
+    .sort((a, b) => recentlyViewedIds.indexOf(a.id) - recentlyViewedIds.indexOf(b.id));
 
-  const filteredPins = realPins.filter(pin => {
-    const categoryMatch = activeCategory === 'All' || 
-                         pin.category === activeCategory || 
-                         pin.tags?.includes(activeCategory);
-    
-    // Normalize color matching
-    const colorMatch = !activeColor || 
-                      (pin.color?.toLowerCase() === activeColor?.toLowerCase());
-    
-    const searchLower = debouncedSearch.toLowerCase().trim();
-    if (!searchLower) return categoryMatch && colorMatch;
+  const filteredPins = (() => {
+    let pins = [...realPins];
 
-    const titleMatch = pin.title?.toLowerCase().includes(searchLower);
-    const descMatch = pin.description?.toLowerCase().includes(searchLower);
-    const tagMatch = pin.tags?.some(t => t.toLowerCase().includes(searchLower));
+    // Neural Algorithm: For You Mode
+    if (feedMode === 'for-you' && user) {
+      pins = pins.sort((a, b) => {
+        // Priority 1: Followed Identities
+        const aFollowed = followingIds.includes(a.userId);
+        const bFollowed = followingIds.includes(b.userId);
+        if (aFollowed && !bFollowed) return -1;
+        if (!aFollowed && bFollowed) return 1;
 
-    return categoryMatch && colorMatch && (titleMatch || descMatch || tagMatch);
-  });
+        // Priority 2: Archival Affinity (Interest Match)
+        const aInterest = likedPinCategories.indexOf(a.category);
+        const bInterest = likedPinCategories.indexOf(b.category);
+        
+        // If an interest exists (index >= 0), prioritize it
+        if (aInterest !== -1 && (bInterest === -1 || aInterest < bInterest)) return -1;
+        if (bInterest !== -1 && (aInterest === -1 || bInterest < aInterest)) return 1;
+
+        // Fallback: Recency
+        return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+      });
+    }
+
+    return pins.filter(pin => {
+      const categoryMatch = activeCategory === 'All' || 
+                           pin.category === activeCategory || 
+                           pin.tags?.includes(activeCategory);
+      
+      const searchLower = debouncedSearch.toLowerCase().trim();
+      if (!searchLower) return categoryMatch;
+
+      const titleMatch = pin.title?.toLowerCase().includes(searchLower);
+      const descMatch = pin.description?.toLowerCase().includes(searchLower);
+      const tagMatch = pin.tags?.some(t => t.toLowerCase().includes(searchLower));
+      const archetypeMatch = pin.archetypes?.some(a => a.toLowerCase().includes(searchLower));
+
+      return categoryMatch && (titleMatch || descMatch || tagMatch || archetypeMatch);
+    });
+  })();
 
   const visiblePins = filteredPins.slice(0, displayCount);
 
@@ -192,10 +290,6 @@ export default function App() {
       
       <Navbar 
         onUploadClick={() => setIsUploadModalOpen(true)} 
-        onColorChange={(color) => {
-          setActiveColor(color);
-          if (currentView !== 'feed') setCurrentView('feed');
-        }}
         onSearchChange={(query) => {
           setSearchQuery(query);
           if (currentView !== 'feed') setCurrentView('feed');
@@ -204,9 +298,8 @@ export default function App() {
         onFeedClick={() => { setCurrentView('feed'); setSelectedPin(null); setTargetUserId(null); }}
         onNotificationsClick={() => setIsNotificationsOpen(true)}
         onMessagesClick={() => setIsMessagesOpen(true)}
-        activeColor={activeColor}
         searchQuery={searchQuery}
-        currentView={currentView === 'detail' ? 'feed' : currentView}
+        currentView={currentView === 'detail' ? 'feed' : (currentView === 'profile' ? 'profile' : 'feed')}
       />
       
       <main className="max-w-[1400px] mx-auto flex-1 w-full relative">
@@ -223,6 +316,11 @@ export default function App() {
                 onCategoryChange={setActiveCategory} 
                 sortOrder={sortOrder}
                 onSortChange={setSortOrder}
+                feedMode={feedMode}
+                onFeedModeChange={(mode) => {
+                  setFeedMode(mode);
+                  setActiveCategory('All');
+                }}
               />
               
               <div className="mt-4 px-10">
@@ -320,6 +418,7 @@ export default function App() {
               userId={targetUserId || user?.uid}
               createdPins={createdPins}
               savedPins={savedPins}
+              recentPins={recentPins}
               onEditProfile={() => { setIsEditProfileMode(true); setIsSettingsOpen(true); }}
               onSettingsClick={() => { setIsEditProfileMode(false); setIsSettingsOpen(true); }}
               onPinClick={handlePinClick}

@@ -1,10 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, User, Shield, Palette, LogOut, Check, Loader2, Edit2 } from 'lucide-react';
+import { X, User, Shield, Palette, LogOut, Check, Loader2, Edit2, Moon, Zap } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { logOut, auth, db } from '../lib/firebase';
 import { updateProfile } from 'firebase/auth';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface SettingsModalProps {
 
 export default function SettingsModal({ isOpen, onClose, isEditProfile = false }: SettingsModalProps) {
   const { user, profileData } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState(isEditProfile ? 'profile' : 'account');
   const [displayName, setDisplayName] = useState('');
   const [handle, setHandle] = useState('');
@@ -21,6 +23,7 @@ export default function SettingsModal({ isOpen, onClose, isEditProfile = false }
   const [photoURL, setPhotoURL] = useState('');
   const [accentColor, setAccentColor] = useState('#FFFFFF');
   const [isSaving, setIsSaving] = useState(false);
+  const [errorHeader, setErrorHeader] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -81,24 +84,49 @@ export default function SettingsModal({ isOpen, onClose, isEditProfile = false }
 
   const handleSave = async () => {
     if (!auth.currentUser) return;
+    
+    // 0. Validation
+    const cleanHandle = handle.toLowerCase().replace(/\s+/g, '');
+    if (cleanHandle.length < 3 || cleanHandle.length > 20) {
+      setErrorHeader("Handle must be between 3 and 20 characters.");
+      setTimeout(() => setErrorHeader(null), 3000);
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(cleanHandle)) {
+      setErrorHeader("Handle can only contain letters, numbers, and underscores.");
+      setTimeout(() => setErrorHeader(null), 3000);
+      return;
+    }
+
     setIsSaving(true);
     try {
-      // 1. Update Auth for basic sync
-      // Note: We try updating Auth but if it fails due to size, we continue as Firestore is our primary source now
+      // 1. Uniqueness check
+      if (cleanHandle !== profileData?.handle) {
+        const q = query(collection(db, 'users'), where('handle', '==', cleanHandle));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          setErrorHeader("This identity handle is already synchronized to another user.");
+          setIsSaving(false);
+          setTimeout(() => setErrorHeader(null), 3000);
+          return;
+        }
+      }
+
+      // 2. Update Auth for basic sync
       try {
         await updateProfile(auth.currentUser, {
           displayName: displayName
-          // We intentionally omit photoURL update in Auth if it's a large base64
         });
       } catch (e) {
-        console.warn("Auth profile sync failed (expected if data too large):", e);
+        console.warn("Auth profile sync failed:", e);
       }
 
-      // 2. Update Firestore (Primary Source of truth for display)
+      // 3. Update Firestore
       const userRef = doc(db, 'users', auth.currentUser.uid);
       await updateDoc(userRef, {
         displayName: displayName,
-        handle: handle.toLowerCase().replace(/\s+/g, ''),
+        handle: cleanHandle,
         photoURL: photoURL,
         bio: bio,
         accentColor: accentColor
@@ -108,7 +136,8 @@ export default function SettingsModal({ isOpen, onClose, isEditProfile = false }
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {
       console.error("Update profile error:", error);
-      alert("Failed to update profile");
+      setErrorHeader("Archival synchronization failed. Please check connection.");
+      setTimeout(() => setErrorHeader(null), 3000);
     } finally {
       setIsSaving(false);
     }
@@ -179,6 +208,15 @@ export default function SettingsModal({ isOpen, onClose, isEditProfile = false }
               </div>
 
               <div className="flex-1 overflow-y-auto p-8">
+                {errorHeader && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold uppercase tracking-widest text-center"
+                  >
+                    {errorHeader}
+                  </motion.div>
+                )}
                 {activeTab === 'profile' && (
                   <div className="flex flex-col gap-8 max-w-md">
                     <div className="flex items-center gap-6">
@@ -277,15 +315,54 @@ export default function SettingsModal({ isOpen, onClose, isEditProfile = false }
                 )}
 
                 {activeTab === 'appearance' && (
-                  <div className="flex flex-col gap-6">
-                    <p className="text-text-muted text-sm italic">"The void is whatever shade of dark you choose."</p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 rounded-2xl border-2 border-white bg-midnight aspect-video flex items-center justify-center">
-                        <span className="text-xs font-bold uppercase">Midnight (Auto)</span>
-                      </div>
-                      <div className="p-4 rounded-2xl border border-border bg-stone-900 aspect-video flex items-center justify-center opacity-50">
-                        <span className="text-xs font-bold uppercase">Abyss (Pro)</span>
-                      </div>
+                  <div className="flex flex-col gap-8">
+                    <div className="space-y-2">
+                       <p className="text-[10px] uppercase font-bold tracking-[2px] text-text-muted">Current Theme</p>
+                       <p className="text-text-muted text-xs italic">"The void is whatever shade of dark you choose."</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6">
+                      <button 
+                        onClick={() => setTheme('midnight')}
+                        className={`group relative p-6 rounded-3xl border-2 transition-all flex flex-col gap-4 text-left overflow-hidden ${theme === 'midnight' ? 'border-accent bg-midnight' : 'border-border bg-midnight/30 hover:border-white/20'}`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <Moon className={`w-6 h-6 ${theme === 'midnight' ? 'text-accent' : 'text-text-muted'}`} />
+                          {theme === 'midnight' && <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />}
+                        </div>
+                        <div>
+                          <span className="block text-sm font-bold uppercase tracking-tight">Midnight</span>
+                          <span className="text-[10px] text-text-muted">The essential network atmosphere.</span>
+                        </div>
+                      </button>
+
+                      <button 
+                        onClick={() => setTheme('abyss')}
+                        className={`group relative p-6 rounded-3xl border-2 transition-all flex flex-col gap-4 text-left overflow-hidden ${theme === 'abyss' ? 'border-accent bg-black shadow-[0_0_40px_rgba(255,255,255,0.05)]' : 'border-border bg-black/50 hover:border-white/20'}`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <Zap className={`w-6 h-6 ${theme === 'abyss' ? 'text-accent' : 'text-text-muted'}`} />
+                          {theme === 'abyss' && <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />}
+                        </div>
+                        <div>
+                          <span className="block text-sm font-bold uppercase tracking-tight">Abyss</span>
+                          <span className="text-[10px] text-text-muted">High-contrast absolute zero.</span>
+                        </div>
+                        
+                        <div className="absolute top-0 right-0 p-2">
+                           <span className="text-[8px] font-bold uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-full border border-white/10 opacity-40">Unlocked</span>
+                        </div>
+                      </button>
+                    </div>
+
+                    <div className="p-6 rounded-3xl bg-midnight/50 border border-border mt-4">
+                      <h4 className="text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
+                         <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+                         Experimental Layers
+                      </h4>
+                      <p className="text-[10px] text-text-muted leading-relaxed">
+                        Abyss mode optimizes high-contrast identity manifestation across the network. More archival layers are being synthesized.
+                      </p>
                     </div>
                   </div>
                 )}
