@@ -35,7 +35,9 @@ export default function PinCard({ pin, onCardClick, isSelectionMode, isSelected,
   };
 
   return (
-    <div 
+    <motion.div 
+      whileHover={{ scale: 1.01, opacity: 0.98 }}
+      transition={{ type: "spring", stiffness: 300, damping: 20 }}
       className={`relative group mb-6 flex flex-col cursor-pointer overflow-hidden rounded-3xl bg-surface border border-white/5 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)]`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setIsHovered(false)}
@@ -143,6 +145,6 @@ export default function PinCard({ pin, onCardClick, isSelectionMode, isSelected,
           )}
         </AnimatePresence>
       </div>
-    </div>
+    </motion.div>
   );
 }

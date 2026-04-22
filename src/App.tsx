@@ -23,6 +23,7 @@ export default function App() {
   const [activeCategory, setActiveCategory] = useState<Category>('All');
   const [sortOrder, setSortOrder] = useState<'newest' | 'trending'>('newest');
   const [feedMode, setFeedMode] = useState<'discovery' | 'for-you'>('discovery');
+  const [activeColor, setActiveColor] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [displayCount, setDisplayCount] = useState(15);
@@ -32,7 +33,7 @@ export default function App() {
   // Reset pagination on filter change
   useEffect(() => {
     setDisplayCount(15);
-  }, [activeCategory, debouncedSearch, sortOrder]);
+  }, [activeCategory, activeColor, debouncedSearch, sortOrder]);
 
   // Social Modal States
   const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
@@ -220,15 +221,18 @@ export default function App() {
                            pin.category === activeCategory || 
                            pin.tags?.includes(activeCategory);
       
+      const colorMatch = !activeColor || 
+                        (pin.accentColor?.toLowerCase() === activeColor?.toLowerCase());
+      
       const searchLower = debouncedSearch.toLowerCase().trim();
-      if (!searchLower) return categoryMatch;
+      if (!searchLower) return categoryMatch && colorMatch;
 
       const titleMatch = pin.title?.toLowerCase().includes(searchLower);
       const descMatch = pin.description?.toLowerCase().includes(searchLower);
       const tagMatch = pin.tags?.some(t => t.toLowerCase().includes(searchLower));
       const archetypeMatch = pin.archetypes?.some(a => a.toLowerCase().includes(searchLower));
 
-      return categoryMatch && (titleMatch || descMatch || tagMatch || archetypeMatch);
+      return categoryMatch && colorMatch && (titleMatch || descMatch || tagMatch || archetypeMatch);
     });
   })();
 
@@ -290,6 +294,10 @@ export default function App() {
       
       <Navbar 
         onUploadClick={() => setIsUploadModalOpen(true)} 
+        onColorChange={(color) => {
+          setActiveColor(color);
+          if (currentView !== 'feed') setCurrentView('feed');
+        }}
         onSearchChange={(query) => {
           setSearchQuery(query);
           if (currentView !== 'feed') setCurrentView('feed');
@@ -298,6 +306,7 @@ export default function App() {
         onFeedClick={() => { setCurrentView('feed'); setSelectedPin(null); setTargetUserId(null); }}
         onNotificationsClick={() => setIsNotificationsOpen(true)}
         onMessagesClick={() => setIsMessagesOpen(true)}
+        activeColor={activeColor}
         searchQuery={searchQuery}
         currentView={currentView === 'detail' ? 'feed' : (currentView === 'profile' ? 'profile' : 'feed')}
       />
