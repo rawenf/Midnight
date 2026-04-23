@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Navbar from './components/Navbar';
 import CategoryBar from './components/CategoryBar';
@@ -185,13 +185,30 @@ export default function App() {
     setLikedPinCategories(sortedInterests);
   }, [user, realPins, savedPinIds]);
 
-  const createdPins = user ? realPins.filter(pin => pin.userId === user.uid) : [];
-  const savedPins = realPins.filter(pin => savedPinIds.includes(pin.id));
-  const recentPins = realPins
-    .filter(pin => recentlyViewedIds.includes(pin.id))
-    .sort((a, b) => recentlyViewedIds.indexOf(a.id) - recentlyViewedIds.indexOf(b.id));
+  // Memoize createdPins to prevent filtering on every render.
+  // Impact: Reduces re-renders and CPU usage when navigating or updating unrelated state.
+  const createdPins = useMemo(() => {
+    return user ? realPins.filter(pin => pin.userId === user.uid) : [];
+  }, [user, realPins]);
 
-  const filteredPins = (() => {
+  // Memoize savedPins to prevent filtering on every render.
+  // Impact: Reduces re-renders and CPU usage.
+  const savedPins = useMemo(() => {
+    return realPins.filter(pin => savedPinIds.includes(pin.id));
+  }, [realPins, savedPinIds]);
+
+  // Memoize recentPins to prevent filtering and sorting on every render.
+  // Impact: Significant performance improvement as sorting is computationally expensive.
+  const recentPins = useMemo(() => {
+    return realPins
+      .filter(pin => recentlyViewedIds.includes(pin.id))
+      .sort((a, b) => recentlyViewedIds.indexOf(a.id) - recentlyViewedIds.indexOf(b.id));
+  }, [realPins, recentlyViewedIds]);
+
+  // Memoize filteredPins to prevent complex sorting and filtering on every render.
+  // Impact: Major performance boost. The neural algorithm sorting and full-text search
+  // filtering are computationally heavy O(N log N) + O(N) operations.
+  const filteredPins = useMemo(() => {
     let pins = [...realPins];
 
     // Neural Algorithm: For You Mode
@@ -234,9 +251,13 @@ export default function App() {
 
       return categoryMatch && colorMatch && (titleMatch || descMatch || tagMatch || archetypeMatch);
     });
-  })();
+  }, [realPins, feedMode, user, followingIds, likedPinCategories, activeCategory, activeColor, debouncedSearch]);
 
-  const visiblePins = filteredPins.slice(0, displayCount);
+  // Memoize visiblePins to prevent slicing on every render.
+  // Impact: Minor performance improvement, ensures referential equality for child components.
+  const visiblePins = useMemo(() => {
+    return filteredPins.slice(0, displayCount);
+  }, [filteredPins, displayCount]);
 
   // Infinite Scroll Trigger
   useEffect(() => {
