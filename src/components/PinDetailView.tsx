@@ -894,13 +894,17 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                     )}
                   </div>
                   
-                  <a 
-                    href={pin.source || "#"} 
-                    className="text-white/30 hover:text-accent text-[10px] flex items-center gap-2 transition-colors"
-                  >
-                    View Primary Source
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
+                  {pin.source && (pin.source.startsWith('http://') || pin.source.startsWith('https://')) && (
+                    <a
+                      href={pin.source}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-white/30 hover:text-accent text-[10px] flex items-center gap-2 transition-colors"
+                    >
+                      View Primary Source
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
                   
                   <h1 className="text-2xl font-display font-medium leading-tight">{pin.title}</h1>
                   <p className="text-text-muted text-xs leading-relaxed opacity-70">{pin.description || "Silent masterpiece."}</p>
