@@ -895,7 +895,9 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                   </div>
                   
                   <a 
-                    href={pin.source || "#"} 
+                    href={(pin.source && (pin.source.startsWith('http://') || pin.source.startsWith('https://'))) ? pin.source : "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-white/30 hover:text-accent text-[10px] flex items-center gap-2 transition-colors"
                   >
                     View Primary Source
