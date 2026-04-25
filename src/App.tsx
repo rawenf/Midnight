@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Navbar from './components/Navbar';
 import CategoryBar from './components/CategoryBar';
@@ -191,15 +191,18 @@ export default function App() {
     .filter(pin => recentlyViewedIds.includes(pin.id))
     .sort((a, b) => recentlyViewedIds.indexOf(a.id) - recentlyViewedIds.indexOf(b.id));
 
-  const filteredPins = (() => {
+  // ⚡ Bolt: Memoized filteredPins to prevent expensive recalculations on every render.
+  // Converting followingIds to a Set changes the O(N) includes check to O(1) has check during sorting.
+  const filteredPins = useMemo(() => {
     let pins = [...realPins];
 
     // Neural Algorithm: For You Mode
     if (feedMode === 'for-you' && user) {
+      const followingSet = new Set(followingIds);
       pins = pins.sort((a, b) => {
         // Priority 1: Followed Identities
-        const aFollowed = followingIds.includes(a.userId);
-        const bFollowed = followingIds.includes(b.userId);
+        const aFollowed = followingSet.has(a.userId);
+        const bFollowed = followingSet.has(b.userId);
         if (aFollowed && !bFollowed) return -1;
         if (!aFollowed && bFollowed) return 1;
 
@@ -234,7 +237,16 @@ export default function App() {
 
       return categoryMatch && colorMatch && (titleMatch || descMatch || tagMatch || archetypeMatch);
     });
-  })();
+  }, [
+    realPins,
+    feedMode,
+    user,
+    followingIds,
+    likedPinCategories,
+    activeCategory,
+    activeColor,
+    debouncedSearch
+  ]);
 
   const visiblePins = filteredPins.slice(0, displayCount);
 
