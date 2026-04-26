@@ -1,0 +1,3 @@
+## 2026-04-26 - Missing Memoization on Complex Array Derivations
+**Learning:** Found an Immediately Invoked Function Expression (IIFE) calculating `filteredPins` on every render in `App.tsx`. This involved multiple complex operations including `sort`, `filter`, and multiple string match checks (e.g. `toLowerCase().includes()`) across multiple properties. Since this runs on every render, it can significantly block the main thread as the list of pins grows.
+**Action:** Always check array derivations (filtering/sorting/mapping) that depend on state variables. If they are complex, they should be wrapped in `useMemo` to prevent recalculation when unrelated state changes.

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Navbar from './components/Navbar';
 import CategoryBar from './components/CategoryBar';
@@ -191,7 +191,11 @@ export default function App() {
     .filter(pin => recentlyViewedIds.includes(pin.id))
     .sort((a, b) => recentlyViewedIds.indexOf(a.id) - recentlyViewedIds.indexOf(b.id));
 
-  const filteredPins = (() => {
+  // ⚡ BOLT OPTIMIZATION
+  // What: Memoized the `filteredPins` calculation.
+  // Why: Prevents expensive array sorting and filtering operations from re-running on every render when unrelated state changes.
+  // Impact: Significant reduction in CPU time during renders, especially as `realPins` grows large, keeping the UI thread unblocked.
+  const filteredPins = useMemo(() => {
     let pins = [...realPins];
 
     // Neural Algorithm: For You Mode
@@ -234,7 +238,7 @@ export default function App() {
 
       return categoryMatch && colorMatch && (titleMatch || descMatch || tagMatch || archetypeMatch);
     });
-  })();
+  }, [realPins, feedMode, user, followingIds, likedPinCategories, activeCategory, activeColor, debouncedSearch]);
 
   const visiblePins = filteredPins.slice(0, displayCount);
 
