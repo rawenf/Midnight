@@ -1,0 +1,4 @@
+## 2026-04-27 - [Fix XSS in href attributes for external URLs]
+**Vulnerability:** [React applications are vulnerable to Stored XSS via `javascript:` URIs if user input is directly passed to the `href` attribute of anchor tags without validation]
+**Learning:** [React automatically escapes HTML strings, but it allows potentially unsafe schemes in URIs. Passing dynamic values like `pin.source` directly to `href` creates an XSS vulnerability when those values are uncontrolled (e.g. they can be modified by the user directly in Firestore)]
+**Prevention:** [Always validate external link fields before rendering them in `href`. Use a Regex pattern to ensure the URL begins strictly with `http://` or `https://` and trim whitespace to prevent simple bypasses. Furthermore, always use `target="_blank"` along with `rel="noopener noreferrer"` when navigating to external websites to prevent Reverse Tabnabbing.]

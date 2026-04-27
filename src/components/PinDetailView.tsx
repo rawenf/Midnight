@@ -895,7 +895,10 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                   </div>
                   
                   <a 
-                    href={pin.source || "#"} 
+                    // Security: Prevent XSS via javascript: URIs in source field
+                    href={pin.source && /^https?:\/\//i.test(pin.source.trim()) ? pin.source.trim() : "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-white/30 hover:text-accent text-[10px] flex items-center gap-2 transition-colors"
                   >
                     View Primary Source
