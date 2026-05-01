@@ -450,6 +450,20 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
     }
   };
 
+  // Security enhancement: Sanitize URLs to prevent XSS via javascript: or data: payloads
+  const sanitizeUrl = (url: string | undefined): string => {
+    if (!url) return "#";
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        return url;
+      }
+      return "#";
+    } catch (e) {
+      return "#";
+    }
+  };
+
   const handleDownload = async () => {
     try {
       const response = await fetch(pin.imageUrl);
@@ -465,7 +479,10 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
     } catch (e) {
       console.error("Download failed:", e);
       alert("Download restricted by source host. Attempting browser internal open.");
-      window.open(pin.imageUrl, '_blank');
+      const safeUrl = sanitizeUrl(pin.imageUrl);
+      if (safeUrl !== "#") {
+        window.open(safeUrl, '_blank', 'noopener,noreferrer');
+      }
     }
   };
 
@@ -895,7 +912,9 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                   </div>
                   
                   <a 
-                    href={pin.source || "#"} 
+                    href={sanitizeUrl(pin.source)}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-white/30 hover:text-accent text-[10px] flex items-center gap-2 transition-colors"
                   >
                     View Primary Source
