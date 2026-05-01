@@ -1,0 +1,3 @@
+## 2025-02-27 - Top-level Search State Causing Render-Blocking Sorts
+**Learning:** In the current architecture, `searchQuery` is tracked in the root `App` component to pass down to `Navbar`. However, typing updates this state on every keystroke, causing `App` to re-render. Since the neural feed sorting and filtering algorithm was running synchronously on every render, typing caused severe input lag.
+**Action:** Always memoize expensive data transformation pipelines (like sorts and multi-field filters) when they sit in a root or high-level component that also manages frequently updating states like text inputs.
