@@ -52,6 +52,15 @@ interface Comment {
   createdAt: any;
 }
 
+function sanitizeUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  const lowerUrl = url.toLowerCase().trim();
+  if (lowerUrl.startsWith('javascript:') || lowerUrl.startsWith('vbscript:') || lowerUrl.startsWith('data:')) {
+    return '#';
+  }
+  return url;
+}
+
 export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSearch, onDelete, onProfileClick }: PinDetailViewProps) {
   const { user, profileData } = useAuth();
   const { theme } = useTheme();
@@ -895,7 +904,9 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                   </div>
                   
                   <a 
-                    href={pin.source || "#"} 
+                    href={sanitizeUrl(pin.source) || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-white/30 hover:text-accent text-[10px] flex items-center gap-2 transition-colors"
                   >
                     View Primary Source
