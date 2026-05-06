@@ -465,7 +465,9 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
     } catch (e) {
       console.error("Download failed:", e);
       alert("Download restricted by source host. Attempting browser internal open.");
-      window.open(pin.imageUrl, '_blank');
+      // Security: Sanitize imageUrl to prevent XSS via javascript: URI
+      const safeUrl = pin.imageUrl && (pin.imageUrl.startsWith('http://') || pin.imageUrl.startsWith('https://')) ? pin.imageUrl : 'about:blank';
+      window.open(safeUrl, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -895,7 +897,9 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                   </div>
                   
                   <a 
-                    href={pin.source || "#"} 
+                    href={pin.source && (pin.source.startsWith('http://') || pin.source.startsWith('https://')) ? pin.source : "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-white/30 hover:text-accent text-[10px] flex items-center gap-2 transition-colors"
                   >
                     View Primary Source
