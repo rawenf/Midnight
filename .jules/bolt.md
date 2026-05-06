@@ -1,0 +1,3 @@
+## 2025-02-24 - React Context and Keystroke Re-renders
+**Learning:** Re-renders triggered by keystrokes in a search input within a parent component cause all children to re-render. If children are expensive (e.g. Masonry grid with images/animations) and rely on inline functions that break pure component behavior, this causes noticeable jank.
+**Action:** Use `React.useMemo` for derived states like filtered lists and `React.memo` with a custom comparator for complex child items (e.g. `PinCard`) to prevent reference equality checks from breaking the memoization when inline callbacks are passed down.

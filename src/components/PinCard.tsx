@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { Download, Share2, MoreHorizontal, Bookmark, Heart, MessageSquare } from 'lucide-react';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Pin } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -12,7 +12,7 @@ interface PinCardProps {
   onToggleSelection?: (id: string) => void;
 }
 
-export default function PinCard({ pin, onCardClick, isSelectionMode, isSelected, onToggleSelection }: PinCardProps) {
+const PinCard = ({ pin, onCardClick, isSelectionMode, isSelected, onToggleSelection }: PinCardProps) => {
   const { user, profileData } = useAuth();
   const [isHovered, setIsHovered] = useState(false);
   const [isFlickering, setIsFlickering] = useState(false);
@@ -147,4 +147,12 @@ export default function PinCard({ pin, onCardClick, isSelectionMode, isSelected,
       </div>
     </motion.div>
   );
-}
+};
+
+export default React.memo(PinCard, (prevProps, nextProps) => {
+  return (
+    prevProps.pin.id === nextProps.pin.id &&
+    prevProps.isSelectionMode === nextProps.isSelectionMode &&
+    prevProps.isSelected === nextProps.isSelected
+  );
+});
