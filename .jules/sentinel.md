@@ -1,0 +1,4 @@
+## 2024-05-18 - XSS & Reverse Tabnabbing via Unsanitized External Links
+**Vulnerability:** External links (`href={pin.source}`) and programmatic window opening (`window.open(pin.imageUrl)`) accepted raw user input without validating the URL scheme, allowing potential XSS via `javascript:` URIs. Additionally, external links lacked `rel="noopener noreferrer"`.
+**Learning:** React does not automatically prevent `javascript:` URIs in `<a href>` attributes or `window.open`. Untrusted URLs provided by users must be sanitized at the application level before rendering.
+**Prevention:** Always validate that user-provided URLs start with `http://` or `https://` before rendering them in `href` or using them in navigation. Use `target="_blank"` with `rel="noopener noreferrer"` for external links to prevent reverse tabnabbing and protect the originating window.
