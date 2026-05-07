@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Navbar from './components/Navbar';
 import CategoryBar from './components/CategoryBar';
@@ -185,13 +185,16 @@ export default function App() {
     setLikedPinCategories(sortedInterests);
   }, [user, realPins, savedPinIds]);
 
-  const createdPins = user ? realPins.filter(pin => pin.userId === user.uid) : [];
-  const savedPins = realPins.filter(pin => savedPinIds.includes(pin.id));
-  const recentPins = realPins
+  // ⚡ Bolt Performance Optimization: Memoize expensive array operations that run on every render
+  const createdPins = useMemo(() => user ? realPins.filter(pin => pin.userId === user.uid) : [], [user, realPins]);
+  const savedPins = useMemo(() => realPins.filter(pin => savedPinIds.includes(pin.id)), [realPins, savedPinIds]);
+  const recentPins = useMemo(() => realPins
     .filter(pin => recentlyViewedIds.includes(pin.id))
-    .sort((a, b) => recentlyViewedIds.indexOf(a.id) - recentlyViewedIds.indexOf(b.id));
+    .sort((a, b) => recentlyViewedIds.indexOf(a.id) - recentlyViewedIds.indexOf(b.id)), [realPins, recentlyViewedIds]);
 
-  const filteredPins = (() => {
+  // ⚡ Bolt Performance Optimization: Memoize complex filtering and sorting logic
+  // Impact: Prevents O(n log n) sorting and multiple O(n) filtering passes on every re-render
+  const filteredPins = useMemo(() => {
     let pins = [...realPins];
 
     // Neural Algorithm: For You Mode
@@ -234,7 +237,7 @@ export default function App() {
 
       return categoryMatch && colorMatch && (titleMatch || descMatch || tagMatch || archetypeMatch);
     });
-  })();
+  }, [realPins, feedMode, user, followingIds, likedPinCategories, activeCategory, activeColor, debouncedSearch]);
 
   const visiblePins = filteredPins.slice(0, displayCount);
 
