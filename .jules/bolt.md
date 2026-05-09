@@ -1,0 +1,3 @@
+## 2025-02-28 - Avoid O(N) Array Lookups in React Render Sorting
+**Learning:** The codebase had missing memoization in `src/App.tsx` which caused `.filter()` and `.sort()` on `realPins` to run every render. More critically, the `.sort()` callbacks were performing `indexOf` and `includes` lookups on `recentlyViewedIds` and `followingIds` arrays. In O(N log N) sorting, doing an O(N) lookup repeatedly creates a massive performance bottleneck scaling at O(N log N * K) where K is the array length.
+**Action:** Always verify memoization on large dataset manipulations (`useMemo`) and replace `.includes()` / `.indexOf()` array lookups inside sorts/filters with O(1) `Set` and `Map` lookups created beforehand.

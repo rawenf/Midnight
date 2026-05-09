@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Navbar from './components/Navbar';
 import CategoryBar from './components/CategoryBar';
@@ -185,27 +185,37 @@ export default function App() {
     setLikedPinCategories(sortedInterests);
   }, [user, realPins, savedPinIds]);
 
-  const createdPins = user ? realPins.filter(pin => pin.userId === user.uid) : [];
-  const savedPins = realPins.filter(pin => savedPinIds.includes(pin.id));
-  const recentPins = realPins
-    .filter(pin => recentlyViewedIds.includes(pin.id))
-    .sort((a, b) => recentlyViewedIds.indexOf(a.id) - recentlyViewedIds.indexOf(b.id));
+  const createdPins = useMemo(() => user ? realPins.filter(pin => pin.userId === user.uid) : [], [realPins, user]);
+  const savedPins = useMemo(() => {
+    const savedSet = new Set(savedPinIds);
+    return realPins.filter(pin => savedSet.has(pin.id));
+  }, [realPins, savedPinIds]);
 
-  const filteredPins = (() => {
+  const recentPins = useMemo(() => {
+    const recentMap = new Map(recentlyViewedIds.map((id, index) => [id, index]));
+    return realPins
+      .filter(pin => recentMap.has(pin.id))
+      .sort((a, b) => (Number(recentMap.get(a.id) ?? 0)) - (Number(recentMap.get(b.id) ?? 0)));
+  }, [realPins, recentlyViewedIds]);
+
+  const filteredPins = useMemo(() => {
     let pins = [...realPins];
 
     // Neural Algorithm: For You Mode
     if (feedMode === 'for-you' && user) {
+      const followingSet = new Set(followingIds);
+      const categoryIndexMap = new Map(likedPinCategories.map((cat, i) => [cat, i]));
+
       pins = pins.sort((a, b) => {
         // Priority 1: Followed Identities
-        const aFollowed = followingIds.includes(a.userId);
-        const bFollowed = followingIds.includes(b.userId);
+        const aFollowed = followingSet.has(a.userId);
+        const bFollowed = followingSet.has(b.userId);
         if (aFollowed && !bFollowed) return -1;
         if (!aFollowed && bFollowed) return 1;
 
         // Priority 2: Archival Affinity (Interest Match)
-        const aInterest = likedPinCategories.indexOf(a.category);
-        const bInterest = likedPinCategories.indexOf(b.category);
+        const aInterest = categoryIndexMap.get(a.category) ?? -1;
+        const bInterest = categoryIndexMap.get(b.category) ?? -1;
         
         // If an interest exists (index >= 0), prioritize it
         if (aInterest !== -1 && (bInterest === -1 || aInterest < bInterest)) return -1;
@@ -216,6 +226,8 @@ export default function App() {
       });
     }
 
+    const searchLower = debouncedSearch.toLowerCase().trim();
+
     return pins.filter(pin => {
       const categoryMatch = activeCategory === 'All' || 
                            pin.category === activeCategory || 
@@ -224,7 +236,6 @@ export default function App() {
       const colorMatch = !activeColor || 
                         (pin.accentColor?.toLowerCase() === activeColor?.toLowerCase());
       
-      const searchLower = debouncedSearch.toLowerCase().trim();
       if (!searchLower) return categoryMatch && colorMatch;
 
       const titleMatch = pin.title?.toLowerCase().includes(searchLower);
@@ -234,7 +245,7 @@ export default function App() {
 
       return categoryMatch && colorMatch && (titleMatch || descMatch || tagMatch || archetypeMatch);
     });
-  })();
+  }, [realPins, feedMode, user, followingIds, likedPinCategories, activeCategory, activeColor, debouncedSearch]);
 
   const visiblePins = filteredPins.slice(0, displayCount);
 
