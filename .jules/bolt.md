@@ -1,0 +1,3 @@
+## 2024-05-24 - Memoizing Expensive Array Operations in React Render Body
+**Learning:** Found that complex sorting and filtering logic placed directly inside the main `App` component's body was running on every render cycle. Since React triggers re-renders frequently (e.g. on debounced search updates or active view changes), running O(N log N) sorts and array filters synchronously blocks the main thread and severely degrades rendering performance as the dataset grows.
+**Action:** Always wrap expensive data derivations (such as `.sort()` and `.filter()`) using `useMemo` with correctly defined dependency arrays so that the computations are only performed when the actual underlying data or filter conditions change, rather than on every trivial re-render.
