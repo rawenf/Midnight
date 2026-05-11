@@ -1,0 +1,3 @@
+## 2025-03-01 - Prevent main thread blocking on debounced inputs with unmemoized state
+**Learning:** Unmemoized derived state (like a heavily filtered array) that relies on a debounced value still re-runs on non-debounced state changes (like the raw keystrokes in a search input). This causes O(N log N) sorting and filtering operations on every render, blocking the main thread and resulting in a laggy UI during input.
+**Action:** Always wrap expensive derived state operations in `useMemo`, even when you think the primary state trigger is debounced, because React will still re-evaluate the unmemoized logic whenever *any* state in the component changes.
