@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Navbar from './components/Navbar';
 import CategoryBar from './components/CategoryBar';
@@ -185,13 +185,16 @@ export default function App() {
     setLikedPinCategories(sortedInterests);
   }, [user, realPins, savedPinIds]);
 
-  const createdPins = user ? realPins.filter(pin => pin.userId === user.uid) : [];
-  const savedPins = realPins.filter(pin => savedPinIds.includes(pin.id));
-  const recentPins = realPins
+  // ⚡ Bolt Performance Optimization: Memoize derived pin arrays to prevent expensive synchronous recalculations on every render.
+  // Impact: Reduces main thread blocking time during frequent re-renders (e.g., when typing in search or switching views).
+  // Measurement: Verify UI responsiveness improvements, especially on large datasets.
+  const createdPins = useMemo(() => user ? realPins.filter(pin => pin.userId === user.uid) : [], [user, realPins]);
+  const savedPins = useMemo(() => realPins.filter(pin => savedPinIds.includes(pin.id)), [realPins, savedPinIds]);
+  const recentPins = useMemo(() => realPins
     .filter(pin => recentlyViewedIds.includes(pin.id))
-    .sort((a, b) => recentlyViewedIds.indexOf(a.id) - recentlyViewedIds.indexOf(b.id));
+    .sort((a, b) => recentlyViewedIds.indexOf(a.id) - recentlyViewedIds.indexOf(b.id)), [realPins, recentlyViewedIds]);
 
-  const filteredPins = (() => {
+  const filteredPins = useMemo(() => {
     let pins = [...realPins];
 
     // Neural Algorithm: For You Mode
@@ -234,9 +237,9 @@ export default function App() {
 
       return categoryMatch && colorMatch && (titleMatch || descMatch || tagMatch || archetypeMatch);
     });
-  })();
+  }, [realPins, feedMode, user, followingIds, likedPinCategories, activeCategory, activeColor, debouncedSearch]);
 
-  const visiblePins = filteredPins.slice(0, displayCount);
+  const visiblePins = useMemo(() => filteredPins.slice(0, displayCount), [filteredPins, displayCount]);
 
   // Infinite Scroll Trigger
   useEffect(() => {
