@@ -1,0 +1,3 @@
+## 2025-05-14 - Expensive Array Operations in Render Path
+**Learning:** Found a pattern in `src/App.tsx` where expensive array operations (filtering, sorting, slicing) on large data sets (`realPins`) were being executed synchronously directly in the main render path on every re-render. This blocks the main thread and can cause significant UI stuttering, especially as the list of pins grows or when typing in search bars (which triggers frequent re-renders).
+**Action:** Always wrap derived data calculations that involve array iteration (like `filter`, `sort`, `map`, `reduce`) with `useMemo` when working in React components. This ensures the operations only run when their dependencies actually change, rather than on every single component render.
