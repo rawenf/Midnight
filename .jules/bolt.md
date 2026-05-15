@@ -1,0 +1,3 @@
+## 2025-05-15 - [Anti-Pattern] Synchronous Array Operations in Render Path
+**Learning:** Found a critical performance bottleneck where expensive array operations (filtering and sorting lists of pins based on user preferences and search queries) were executed synchronously directly in the main render path of `App.tsx`. In React, especially with complex lists, doing this without memoization causes unnecessary main thread blocking on every single re-render.
+**Action:** Always utilize `useMemo` for any complex list filtering or sorting logic inside component bodies to ensure these expensive calculations only run when their dependencies actually change, thus preserving UI responsiveness.
