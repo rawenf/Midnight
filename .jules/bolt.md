@@ -1,0 +1,3 @@
+## 2024-05-18 - Synchronous Array Operations Blocking Main Thread
+**Learning:** The codebase exhibits a pattern of performing expensive synchronous array operations (like sorting and filtering lists such as `filteredPins`, `createdPins`, `savedPins`, and `recentPins`) directly in the component render path (e.g., App.tsx). This causes the main thread to be blocked on every re-render when these states change or any unrelated state changes, leading to poor UI performance and jank during interactions.
+**Action:** Utilize `useMemo` to optimize these operations by wrapping derived data logic. This ensures the expensive calculations are only re-executed when their specific dependencies change, rather than on every component render, improving application responsiveness.
