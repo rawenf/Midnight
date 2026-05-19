@@ -1,0 +1,3 @@
+## 2024-05-17 - React Render Path Array Operations Optimization
+**Learning:** The App.tsx component performs expensive synchronous array operations (`.filter()`, `.sort()`) on large lists (`realPins`) directly in the main render path. This causes the main thread to block during frequent state updates or re-renders (like when scrolling or interacting with UI), degrading UI responsiveness.
+**Action:** Use `useMemo` to cache the results of these array operations so they only re-run when their specific dependencies (`realPins`, `user`, etc.) change, preventing unnecessary recalculations on every render.
