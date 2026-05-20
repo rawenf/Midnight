@@ -9,6 +9,7 @@ import {
 import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react';
 import { Pin } from '../types';
 import MasonryGrid from './MasonryGrid';
+import { getSafeUrl } from '../lib/security';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import ConfirmationModal from './ConfirmationModal';
@@ -465,7 +466,7 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
     } catch (e) {
       console.error("Download failed:", e);
       alert("Download restricted by source host. Attempting browser internal open.");
-      window.open(pin.imageUrl, '_blank');
+      window.open(getSafeUrl(pin.imageUrl), '_blank');
     }
   };
 
@@ -895,7 +896,7 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                   </div>
                   
                   <a 
-                    href={pin.source || "#"} 
+                    href={getSafeUrl(pin.source)}
                     className="text-white/30 hover:text-accent text-[10px] flex items-center gap-2 transition-colors"
                   >
                     View Primary Source
