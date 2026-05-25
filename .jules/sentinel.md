@@ -1,0 +1,4 @@
+## 2025-02-27 - Unsanitized User URLs Leading to Stored XSS
+**Vulnerability:** User-provided URLs (`pin.source`, `pin.imageUrl`) were used directly in `href` attributes and `window.open()` calls without validation.
+**Learning:** React does not automatically sanitize `href` attributes against `javascript:` URIs. If an attacker inputs `javascript:alert(1)`, it executes when clicked. This is a common and dangerous Stored XSS vector in React applications handling user-generated links.
+**Prevention:** Always validate and sanitize user-provided URLs using a utility function (like `getSafeUrl`) to ensure they use safe protocols (`http://` or `https://`) or are relative paths before rendering them in `href` attributes or using them in navigation functions.
