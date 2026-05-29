@@ -1,0 +1,4 @@
+## 2024-05-29 - Missing URL Sanitization causing Stored XSS
+**Vulnerability:** Found `pin.source` and `pin.imageUrl` used directly in `href` attributes and `window.open` calls without sanitization. This allowed execution of `javascript:` URLs.
+**Learning:** React does not automatically sanitize `href` attributes against `javascript:` URIs. It is critical to sanitize all user-provided URLs before rendering them as links.
+**Prevention:** Created a centralized `getSafeUrl` utility in `src/lib/security.ts` to implement a strict allowlist (http://, https://, or /). All user URLs should pass through this utility before use.
