@@ -1,0 +1,3 @@
+## 2024-06-01 - Missing Memoization on Filter and Sort Operations
+**Learning:** Found a pattern of performing expensive synchronous array operations (like sorting and filtering lists) directly in the component render path (e.g., `App.tsx` computing `filteredPins`). This blocks the main thread during frequent re-renders.
+**Action:** Utilize `useMemo` to optimize these operations and prevent main thread blocking, ensuring calculations only run when dependencies change.
