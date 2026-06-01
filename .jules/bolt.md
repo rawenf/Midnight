@@ -1,0 +1,3 @@
+## 2025-06-01 - Synchronous Array Operations in Render Path
+**Learning:** The App component performs heavy array operations (multiple `.filter` and `.sort` on the `realPins` list) synchronously on every render. This becomes a major bottleneck as the global list grows because any unrelated local state change (like opening a modal or typing in a search bar) triggers an expensive re-evaluation.
+**Action:** Always wrap heavy data transformations on lists with `useMemo`, ensuring they only re-run when their explicit dependencies change, particularly for global data sets manipulated at the root level.
