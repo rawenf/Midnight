@@ -1,0 +1,3 @@
+## 2025-03-05 - Expensive Synchronous Operations in Render Path
+**Learning:** The codebase exhibits a pattern of performing expensive synchronous array operations (like sorting and filtering lists) directly in the component render path (e.g., App.tsx), causing main thread blocking.
+**Action:** Utilize useMemo to memoize these expensive operations to prevent unnecessary re-calculations during frequent re-renders.
