@@ -29,6 +29,7 @@ import {
   increment,
   where
 } from 'firebase/firestore';
+import { getSafeUrl } from '../lib/security';
 
 interface PinDetailViewProps {
   pin: Pin;
@@ -465,7 +466,12 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
     } catch (e) {
       console.error("Download failed:", e);
       alert("Download restricted by source host. Attempting browser internal open.");
-      window.open(pin.imageUrl, '_blank');
+      const safeUrl = getSafeUrl(pin.imageUrl);
+      if (safeUrl) {
+        window.open(safeUrl, '_blank');
+      } else {
+        alert("Invalid URL.");
+      }
     }
   };
 
@@ -895,7 +901,7 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                   </div>
                   
                   <a 
-                    href={pin.source || "#"} 
+                    href={getSafeUrl(pin.source) || "#"}
                     className="text-white/30 hover:text-accent text-[10px] flex items-center gap-2 transition-colors"
                   >
                     View Primary Source
