@@ -1,0 +1,3 @@
+## 2025-05-18 - [App.tsx Pin Array Memoization]
+**Learning:** Found a major performance bottleneck where multiple expensive array operations (filtering and sorting pins, including complex IIFE for neural algorithm logic) were executing on every component render in `App.tsx` without memoization. In React applications, especially with potentially large datasets like feeds, this synchronous work blocks the main thread.
+**Action:** Use `useMemo` to memoize derived state (like `createdPins`, `savedPins`, `recentPins`, and `filteredPins`) to ensure they only recalculate when their specific dependencies (like `realPins`, `user`, or search states) change.
