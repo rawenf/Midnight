@@ -1,0 +1,3 @@
+## 2025-03-01 - Synchronous Array Operations in Render Path
+**Learning:** In React applications with real-time data sync, performing expensive array operations (like filtering and sorting lists) synchronously during the component render path can block the main thread and cause performance bottlenecks as data scales.
+**Action:** Always utilize `useMemo` to wrap derived lists (like filtered or sorted arrays) with appropriate dependencies to prevent redundant, expensive computations on unrelated re-renders.
