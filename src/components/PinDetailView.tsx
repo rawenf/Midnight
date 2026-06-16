@@ -13,6 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import ConfirmationModal from './ConfirmationModal';
 import { db, auth } from '../lib/firebase';
+import { getSafeUrl } from '../lib/security';
 import { followUser, unfollowUser } from '../services/followService';
 import { 
   doc, 
@@ -465,7 +466,13 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
     } catch (e) {
       console.error("Download failed:", e);
       alert("Download restricted by source host. Attempting browser internal open.");
-      window.open(pin.imageUrl, '_blank');
+      // Security: Validate URL before opening to prevent XSS
+      const safeUrl = getSafeUrl(pin.imageUrl);
+      if (safeUrl !== '#') {
+        window.open(safeUrl, '_blank');
+      } else {
+        console.error("Blocked opening unsafe URL");
+      }
     }
   };
 
@@ -894,8 +901,9 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                     )}
                   </div>
                   
+                  {/* Security: Validate source URL to prevent Stored XSS */}
                   <a 
-                    href={pin.source || "#"} 
+                    href={getSafeUrl(pin.source)}
                     className="text-white/30 hover:text-accent text-[10px] flex items-center gap-2 transition-colors"
                   >
                     View Primary Source
