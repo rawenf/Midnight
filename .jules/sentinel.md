@@ -1,0 +1,4 @@
+## 2024-05-24 - Stored XSS via Unvalidated URLs
+**Vulnerability:** Found unvalidated user-provided URLs (`pin.source` and `pin.imageUrl`) used directly in `href` attributes and `window.open` calls without protocol validation.
+**Learning:** React does not automatically sanitize `href` attributes against `javascript:` URIs, making the application vulnerable to Stored XSS if malicious URLs are stored in the database.
+**Prevention:** Always validate and sanitize user-provided URLs against a strict protocol allowlist (e.g., `http://`, `https://`, `mailto:`, `tel:`, `data:image/` or relative paths starting with `/`) using a centralized utility function before using them in links or redirects.
