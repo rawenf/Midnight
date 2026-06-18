@@ -1,0 +1,1 @@
+export const getSafeUrl = (url: string | undefined): string => { if (!url) return '#'; const allowedProtocols = ['http://', 'https://', 'mailto:', 'tel:', 'data:image/']; const isSafe = allowedProtocols.some(p => url.toLowerCase().startsWith(p)) || url.startsWith('/'); return isSafe ? url : '#'; };

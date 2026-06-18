@@ -1,0 +1,4 @@
+## 2025-02-23 - Prevent Stored XSS in React URL handling
+**Vulnerability:** User-provided URLs (pin.source, pin.imageUrl) were being used directly in `<a href>` and `window.open()` without validation. This allowed Stored XSS attacks via `javascript:` URIs since React does not automatically sanitize `href` attributes.
+**Learning:** React escapes text content but does not validate URL protocols in `href` or `window.open`. A maliciously crafted image or source URL (e.g. `javascript:alert(1)`) could execute arbitrary code when clicked or opened.
+**Prevention:** Always validate user-provided URLs against an allowlist of safe protocols (http, https, mailto, tel, data:image/, or relative paths) before rendering them in DOM attributes or passing them to navigation functions.
