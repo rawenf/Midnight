@@ -14,6 +14,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import ConfirmationModal from './ConfirmationModal';
 import { db, auth } from '../lib/firebase';
 import { followUser, unfollowUser } from '../services/followService';
+import { getSafeUrl } from '../lib/security';
 import { 
   doc, 
   collection, 
@@ -895,7 +896,7 @@ export default function PinDetailView({ pin, allPins, onBack, onPinClick, onSear
                   </div>
                   
                   <a 
-                    href={pin.source || "#"} 
+                    href={getSafeUrl(pin.source)}
                     className="text-white/30 hover:text-accent text-[10px] flex items-center gap-2 transition-colors"
                   >
                     View Primary Source
