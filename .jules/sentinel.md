@@ -1,0 +1,4 @@
+## 2025-03-01 - Prevent Stored XSS via User-Provided URLs
+**Vulnerability:** User-provided URLs (like `pin.source` and `pin.imageUrl`) were being used directly in `href` attributes and `window.open` calls without protocol validation, allowing potential execution of arbitrary JavaScript via `javascript:` URIs (Stored XSS).
+**Learning:** React does not automatically sanitize `href` attributes against `javascript:` URIs. Relying solely on React's built-in escaping is insufficient when user input dictates the URL itself.
+**Prevention:** Always validate and sanitize user-provided URLs using an allowlist approach (e.g., verifying safe protocols like `http:`, `https:`) before using them in links or programmatic navigation.
