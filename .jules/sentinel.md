@@ -1,0 +1,4 @@
+## 2024-07-02 - Stored XSS via Unvalidated URLs
+**Vulnerability:** User-provided URLs (like `pin.source` and `pin.imageUrl`) were used directly in `href` attributes and `window.open` calls without validation.
+**Learning:** React does not automatically sanitize `href` attributes against `javascript:` URIs. If an attacker can inject a payload like `javascript:alert(1)` into `pin.source` or `pin.imageUrl`, it will execute when a user interacts with the link or when a download falls back to opening a new tab.
+**Prevention:** Always validate and sanitize user-provided URLs using `getSafeUrl` (which restricts protocols to safe ones like `http:`, `https:`, etc.) before passing them to `href` or `window.open`.
