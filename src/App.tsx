@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Navbar from './components/Navbar';
 import CategoryBar from './components/CategoryBar';
@@ -185,13 +185,19 @@ export default function App() {
     setLikedPinCategories(sortedInterests);
   }, [user, realPins, savedPinIds]);
 
-  const createdPins = user ? realPins.filter(pin => pin.userId === user.uid) : [];
-  const savedPins = realPins.filter(pin => savedPinIds.includes(pin.id));
-  const recentPins = realPins
-    .filter(pin => recentlyViewedIds.includes(pin.id))
-    .sort((a, b) => recentlyViewedIds.indexOf(a.id) - recentlyViewedIds.indexOf(b.id));
+  // ⚡ Bolt: Memoize created pins
+  const createdPins = useMemo(() => user ? realPins.filter(pin => pin.userId === user.uid) : [], [user, realPins]);
 
-  const filteredPins = (() => {
+  // ⚡ Bolt: Memoize saved pins
+  const savedPins = useMemo(() => realPins.filter(pin => savedPinIds.includes(pin.id)), [realPins, savedPinIds]);
+
+  // ⚡ Bolt: Memoize recent pins
+  const recentPins = useMemo(() => realPins
+    .filter(pin => recentlyViewedIds.includes(pin.id))
+    .sort((a, b) => recentlyViewedIds.indexOf(a.id) - recentlyViewedIds.indexOf(b.id)), [realPins, recentlyViewedIds]);
+
+  // ⚡ Bolt: Memoize filtered and sorted pins to prevent expensive array operations on every render
+  const filteredPins = useMemo(() => {
     let pins = [...realPins];
 
     // Neural Algorithm: For You Mode
@@ -234,7 +240,7 @@ export default function App() {
 
       return categoryMatch && colorMatch && (titleMatch || descMatch || tagMatch || archetypeMatch);
     });
-  })();
+  }, [realPins, feedMode, user, followingIds, likedPinCategories, activeCategory, activeColor, debouncedSearch]);
 
   const visiblePins = filteredPins.slice(0, displayCount);
 
